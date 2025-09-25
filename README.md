@@ -1,5 +1,4 @@
 Windward SE Assignment – Rafael Perel
-____
 
 Part 1: Customer Interaction
 
@@ -15,11 +14,11 @@ To make sure we’re aligned on the exact vessel, could you confirm the MMSI/IMO
 
 I look forward to your reply, and I thank you for your patience as we work this out together.
 
-Sincerely,
-Rafael
-Windward Support Team
+Sincerely,  
+Rafael  
+Windward Support Team  
 
-____
+⸻
 
 Question 2 – Full Answer & Solution
 
@@ -33,70 +32,82 @@ On our side, I’ve already refreshed the data from the API so the Hambantota va
 
 Thank you again for bringing this to our attention, and please let me know if you’d like any further clarification. I look forward to hearing from you and appreciate your patience as we work to ensure everything is accurate together.
 
-Sincerely,
-Rafael
-Windward Support Team
+Sincerely,  
+Rafael  
+Windward Support Team  
 
-____
+⸻
 
 Part 2: SQL
-	1.	Show all the names of employees that own more than 3 keyboards:
+	
+1.	Show all the names of employees that own more than 3 keyboards:
+
 SELECT first_name, last_name FROM EmployeeData WHERE number_of_keyboards > 3;
 
 Result: Melisa Vingoblat, Olga Perez, Melisa Morrel.
-	2.	Show the names and number of screens of all employees named Melisa:
+	
+2.	Show the names and number of screens of all employees named Melisa:
 
-The table provided includes number_of_keyboards but does not include number_of_screens. I therefore used the available field:
+The EmployeeData table includes number_of_keyboards but does not include a number_of_screens column. I therefore used the available field:
+
 SELECT first_name, last_name, number_of_keyboards FROM EmployeeData WHERE first_name = 'Melisa';
 
-____
+⸻
 
 Part 3: Technical Assignment – Code
 
 Phase 1
-	•	Implemented a Node.js server that loads fleets, vessels, and vesselLocations JSON into memory.
-	•	Added route /fleets to return fleet name and vessel count.
-	•	React SPA client shows fleets in a sortable table.
+Implemented a Node.js server that loads the fleets.json, vessels.json, and vesselLocations.json files into memory.
+Added a route /fleets to return each fleet’s name and vessel count.
+Built a React SPA client that displays the fleets in a sortable table.
 
 Phase 2 – Fleet page
-	•	Added route /fleets/:id/vessels to return vessels in a fleet.
-	•	Clicking a fleet shows a page with:
-	•	Sortable table of vessels
-	•	Map displaying vessel locations
-	•	Popups with vessel info when clicking markers
+Added a route /fleets/:id/vessels to return the vessels belonging to a specific fleet.
+Clicking on a fleet in the main page navigates to a fleet page.
+The fleet page shows a sortable table of vessels and a map displaying all vessel locations.
+Clicking a vessel marker on the map opens a popup with vessel information and location details.
 
 Phase 3 – Filtering
-	•	Added route /search?name=&flag=&mmsi= to filter vessels by name, flag, and MMSI with AND logic.
-	•	Fleet page includes search inputs.
-	•	Results filter both the vessels table and the map.
+Added a server route /search?name=&flag=&mmsi= to filter vessels by name, flag, and MMSI using AND logic.
+Added a search section at the top of the fleet page with inputs for name, flag, and MMSI.
+When a search is performed, the results filter both the vessels table and the map.
 
-____
+
+⸻
 
 Running the app
 
 From the repo root:
+
 npm install --prefix server && npm start
 
-App runs at:
-	•	http://localhost:3001
-	•	Health: http://localhost:3001/health
-	•	Endpoints: /fleets, /fleets/:id/vessels, /search
+App runs at: http://localhost:3001
 
-____
+Health check: http://localhost:3001/health
+Endpoints: /fleets, /fleets/:id/vessels, /search
+
+⸻
 
 Design choices
-	•	Data stored in memory per instructions (no DB).
-	•	Simple hash routing in one client/index.html.
-	•	Search is AND across filters, with partial match for MMSI.
-	•	Map rendered with MapLibre for open tiles.
+Data is stored in memory per instructions (no database).
+The client is implemented as a simple single-page app in client/index.html.
+Search is implemented with AND across filters, with partial match allowed for MMSI.
+The map is rendered with MapLibre using open map tiles.
 
-____
+⸻
 
-Repository layout
-	•	client/index.html
-	•	server/index.js
-	•	package.json (root)
-	•	data/fleets.json
-	•	data/vessels.json
-	•	data/vesselLocations.json
-	•	README.md
+## Repository layout
+
+```text
+windward-se-rafael/
+├── client/
+│   └── index.html
+├── server/
+│   ├── data/
+│   │   ├── fleets.json
+│   │   ├── vessels.json
+│   │   └── vesselLocations.json
+│   ├── index.js
+│   └── package.json
+├── package.json
+└── README.md
