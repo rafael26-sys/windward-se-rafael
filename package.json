@@ -1,0 +1,7 @@
+{
+  "name": "windward-se-assignment",
+  "private": true,
+  "scripts": {
+    "start": "npm --prefix server install --silent && npm --prefix server start"
+  }
+}
