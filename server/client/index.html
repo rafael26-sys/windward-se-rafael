@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Windward – Fleets</title>
+    <!-- React (CDN) -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- MapLibre (open-source Mapbox) -->
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 24px; }
+      table { border-collapse: collapse; width: 100%; }
+      th, td { border: 1px solid #ddd; padding: 8px; }
+      th { cursor: pointer; background: #f6f6f6; text-align: left; }
+      .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+      #map { width: 100%; height: 420px; border: 1px solid #ddd; border-radius: 8px; }
+      .link { color: #0a66c2; cursor: pointer; }
+      .back { margin: 12px 0; display: inline-block; }
+      .controls { display:flex; gap:8px; margin: 8px 0 16px; }
+      input { padding:6px 8px; border:1px solid #ccc; border-radius:6px; }
+      button { padding:8px 12px; border:1px solid #0a66c2; color:#0a66c2; background:#eef6ff; border-radius:6px; cursor:pointer; }
+      button:hover { background:#e2f0ff; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      const { useEffect, useMemo, useRef, useState } = React;
+
+      async function jget(path){ const r = await fetch(path); if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }
+
+      function SortableHeader({label, field, sort, setSort}) {
+        const dir = sort.field === field ? (sort.asc ? "▲" : "▼") : "";
+        return React.createElement('th', {
+          onClick: () => setSort(s => ({ field, asc: s.field===field ? !s.asc : true }))
+        }, label + " " + dir);
+      }
+
+      function Fleets() {
+        const [rows, setRows] = useState([]);
+        const [sort, setSort] = useState({ field: 'name', asc: true });
+
+        useEffect(() => { jget('/fleets').then(setRows).catch(console.error); }, []);
+
+        const sorted = useMemo(() => {
+          const copy = rows.slice();
+          copy.sort((a,b) => {
+            const f = sort.field; const A = (a[f] ?? '').toString().toLowerCase(); const B = (b[f] ?? '').toString().toLowerCase();
+            if (A < B) return sort.asc ? -1 : 1;
+            if (A > B) return sort.asc ? 1 : -1;
+            return 0;
+          });
+          return copy;
+        }, [rows, sort]);
+
+        return (
+          React.createElement('div', null,
+            React.createElement('h2', null, 'Fleets'),
+            React.createElement('table', null,
+              React.createElement('thead', null,
+                React.createElement('tr', null,
+                  React.createElement(SortableHeader, {label:'Name', field:'name', sort, setSort}),
+                  React.createElement(SortableHeader, {label:'Vessels', field:'count', sort, setSort})
+                )
+              ),
+              React.createElement('tbody', null,
+                sorted.map(f =>
+                  React.createElement('tr', { key:f._id },
+                    React.createElement('td', null,
+                      React.createElement('span',{ className:'link', onClick:()=>location.hash = '#/fleet/'+f._id }, f.name || '(unnamed)')
+                    ),
+                    React.createElement('td', null, f.count ?? 0)
+                  )
+                )
+              )
+            )
+          )
+        );
+      }
+
+      function FleetPage({ fleetId }) {
+        const [rows, setRows] = useState([]);
+        const [sort, setSort] = useState({ field: 'name', asc: true });
+        const [query, setQuery] = useState({ name:'', flag:'', mmsi:'' });
+        const mapRef = useRef(null);
+        const mapObj = useRef(null);
+        const markers = useRef([]);
+
+        useEffect(()=>{ jget('/fleets/'+fleetId+'/vessels').then(setRows).catch(console.error); }, [fleetId]);
+
+        const refreshSearch = async () => {
+          const qs = new URLSearchParams(Object.fromEntries(Object.entries(query).filter(([k,v])=>v)));
+          const out = (qs.toString() ? await jget('/search?'+qs.toString()) : await jget('/fleets/'+fleetId+'/vessels'));
+          setRows(out);
+        };
+
+        useEffect(()=> {
+          if (!mapRef.current || mapObj.current) return;
+          mapObj.current = new maplibregl.Map({
+            container: mapRef.current,
+            style: 'https://demotiles.maplibre.org/style.json',
+            center: [0,0],
+            zoom: 1.2
+          });
+        }, []);
+
+        useEffect(()=> {
+          if (!mapObj.current) return;
+          markers.current.forEach(m => m.remove());
+          markers.current = [];
+
+          rows.forEach(v => {
+            const c = v?.lastpos?.geometry?.coordinates;
+            if (!c || c.length < 2) return;
+            const mk = new maplibregl.Marker()
+              .setLngLat([c[0], c[1]])
+              .setPopup(new maplibregl.Popup({ closeOnClick:true }).setHTML(
+                `<strong>${v.name || '(unnamed)'}</strong><br/>MMSI: ${v.mmsi || '-'}<br/>Flag: ${v.flag || '-'}<br/>SOG: ${v?.lastpos?.sog ?? '-'}<br/>Course: ${v?.lastpos?.course ?? '-'}<br/>TS: ${v?.lastpos?.ts || '-'}`
+              ))
+              .addTo(mapObj.current);
+            markers.current.push(mk);
+          });
+        }, [rows]);
+
+        const sorted = useMemo(() => {
+          const copy = rows.slice();
+          copy.sort((a,b) => {
+            const f = sort.field;
+            const A = (a[f] ?? '').toString().toLowerCase(); const B = (b[f] ?? '').toString().toLowerCase();
+            if (A < B) return sort.asc ? -1 : 1;
+            if (A > B) return sort.asc ? 1 : -1;
+            return 0;
+          });
+          return copy;
+        }, [rows, sort]);
+
+        return (
+          React.createElement('div', null,
+            React.createElement('a', { className:'back link', onClick:()=>location.hash='#/' }, '← Back to Fleets'),
+            React.createElement('h2', null, 'Fleet'),
+            React.createElement('div', { className:'controls' },
+              React.createElement('input', { placeholder:'Name', value:query.name, onChange:e=>setQuery(q=>({...q,name:e.target.value})) }),
+              React.createElement('input', { placeholder:'Flag', value:query.flag, onChange:e=>setQuery(q=>({...q,flag:e.target.value})) }),
+              React.createElement('input', { placeholder:'MMSI', value:query.mmsi, onChange:e=>setQuery(q=>({...q,mmsi:e.target.value})) }),
+              React.createElement('button', { onClick:refreshSearch }, 'Search')
+            ),
+            React.createElement('div', { className:'row' },
+              React.createElement('div', null,
+                React.createElement('table', null,
+                  React.createElement('thead', null,
+                    React.createElement('tr', null,
+                      React.createElement(SortableHeader, {label:'Name', field:'name', sort, setSort}),
+                      React.createElement(SortableHeader, {label:'MMSI', field:'mmsi', sort, setSort}),
+                      React.createElement(SortableHeader, {label:'Flag', field:'flag', sort, setSort}),
+                      React.createElement('th', null, 'Reported Port')
+                    )
+                  ),
+                  React.createElement('tbody', null,
+                    sorted.map(v =>
+                      React.createElement('tr', { key:v._id },
+                        React.createElement('td', null, v.name || '(unnamed)'),
+                        React.createElement('td', null, v.mmsi || ''),
+                        React.createElement('td', null, v.flag || ''),
+                        React.createElement('td', null, v?.reported_port?.name ? `${v.reported_port.name} (${v.reported_port.ts || ''})` : '')
+                      )
+                    )
+                  )
+                )
+              ),
+              React.createElement('div', null,
+                React.createElement('div', { id:'map', ref:mapRef })
+              )
+            )
+          )
+        );
+      }
+
+      function Router() {
+        const [hash, setHash] = useState(location.hash || '#/');
+
+        useEffect(() => {
+          const onHash = () => setHash(location.hash || '#/');
+          window.addEventListener('hashchange', onHash);
+          return () => window.removeEventListener('hashchange', onHash);
+        }, []);
+
+        const match = hash.match(/^#\/fleet\/(.+)$/);
+        if (match) return React.createElement(FleetPage, { fleetId: match[1] });
+        return React.createElement(Fleets);
+      }
+
+      ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(Router));
+    </script>
+  </body>
+</html>
