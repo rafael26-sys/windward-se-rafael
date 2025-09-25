@@ -7,6 +7,8 @@
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+  <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
   <style>
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 24px; }
     h2 { margin: 0 0 12px; }
@@ -14,22 +16,32 @@
     table { border-collapse: collapse; width: 100%; }
     th, td { border: 1px solid #ddd; padding: 8px; }
     th { background: #f6f6f6; text-align: left; cursor: pointer; }
+    .link { color:#0a66c2; cursor:pointer; }
+    .row { display:grid; grid-template-columns: 1fr 1fr; gap:16px; align-items:start; }
+    #map { width:100%; height:420px; border:1px solid #ddd; border-radius:8px; }
+    .controls { display:flex; gap:8px; margin: 8px 0 16px; }
+    input { padding:6px 8px; border:1px solid #ccc; border-radius:6px; }
+    button { padding:8px 12px; border:1px solid #0a66c2; color:#0a66c2; background:#eef6ff; border-radius:6px; cursor:pointer; }
+    button:hover { background:#e2f0ff; }
+    .back { margin:12px 0; display:inline-block; }
   </style>
 </head>
 <body>
-  <h2>Fleets</h2>
-  <div class="muted">Click a column header to sort.</div>
   <div id="root"></div>
 
   <script type="text/babel">
-    const { useEffect, useMemo, useState } = React;
-    function App() {
+    const { useEffect, useMemo, useRef, useState } = React;
+
+    function SortableHeader({label, field, sort, setSort}) {
+      const dir = sort.field === field ? (sort.asc ? "▲" : "▼") : "";
+      return <th onClick={() => setSort(s => ({ field, asc: s.field===field ? !s.asc : true }))}>{label} {dir}</th>;
+    }
+
+    function Fleets() {
       const [rows, setRows] = useState([]);
       const [sort, setSort] = useState({ field: 'name', asc: true });
 
-      useEffect(() => {
-        fetch('/fleets').then(r=>r.json()).then(setRows).catch(()=>{});
-      }, []);
+      useEffect(() => { fetch('/fleets').then(r=>r.json()).then(setRows).catch(()=>{}); }, []);
 
       const sorted = useMemo(() => {
         const copy = rows.slice();
@@ -44,28 +56,142 @@
         return copy;
       }, [rows, sort]);
 
-      const toggle = (field) => setSort(s => ({ field, asc: s.field===field ? !s.asc : true }));
-
       return (
-        <table>
-          <thead>
-            <tr>
-              <th onClick={()=>toggle('name')}>Name {sort.field==='name' ? (sort.asc ? '▲' : '▼') : ''}</th>
-              <th onClick={()=>toggle('count')}>Vessels {sort.field==='count' ? (sort.asc ? '▲' : '▼') : ''}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map(f => (
-              <tr key={f._id}>
-                <td>{f.name || '(unnamed)'}</td>
-                <td>{f.count ?? 0}</td>
+        <>
+          <h2>Fleets</h2>
+          <div className="muted">Click a column to sort. Click a fleet name to open it.</div>
+          <table>
+            <thead>
+              <tr>
+                <SortableHeader label="Name" field="name" sort={sort} setSort={setSort} />
+                <SortableHeader label="Vessels" field="count" sort={sort} setSort={setSort} />
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {sorted.map(f => (
+                <tr key={f._id}>
+                  <td><span className="link" onClick={()=>location.hash = '#/fleet/'+f._id}>{f.name || '(unnamed)'}</span></td>
+                  <td>{f.count ?? 0}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
       );
     }
-    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+
+    function FleetPage({ fleetId }) {
+      const [rows, setRows] = useState([]);
+      const [sort, setSort] = useState({ field: 'name', asc: true });
+      const [query, setQuery] = useState({ name:'', flag:'', mmsi:'' });
+
+      const mapRef = useRef(null);
+      const mapObj = useRef(null);
+      const markers = useRef([]);
+
+      useEffect(()=>{ fetch('/fleets/'+fleetId+'/vessels').then(r=>r.json()).then(setRows).catch(()=>{}); }, [fleetId]);
+
+      useEffect(()=> {
+        if (!mapRef.current || mapObj.current) return;
+        mapObj.current = new maplibregl.Map({
+          container: mapRef.current,
+          style: 'https://demotiles.maplibre.org/style.json',
+          center: [0,0],
+          zoom: 1.2
+        });
+      }, []);
+
+      useEffect(()=> {
+        if (!mapObj.current) return;
+        markers.current.forEach(m => m.remove());
+        markers.current = [];
+        rows.forEach(v => {
+          const c = v?.lastpos?.geometry?.coordinates;
+          if (!c || c.length < 2) return;
+          const mk = new maplibregl.Marker()
+            .setLngLat([c[0], c[1]])
+            .setPopup(new maplibregl.Popup({ closeOnClick:true }).setHTML(
+              `<strong>${v.name || '(unnamed)'}</strong><br/>MMSI: ${v.mmsi || '-'}<br/>Flag: ${v.flag || '-'}<br/>SOG: ${v?.lastpos?.sog ?? '-'}<br/>Course: ${v?.lastpos?.course ?? '-'}<br/>TS: ${v?.lastpos?.ts || '-'}`
+            ))
+            .addTo(mapObj.current);
+          markers.current.push(mk);
+        });
+      }, [rows]);
+
+      const sorted = useMemo(() => {
+        const copy = rows.slice();
+        copy.sort((a,b)=> {
+          const f = sort.field;
+          const A = (a[f] ?? '').toString().toLowerCase();
+          const B = (b[f] ?? '').toString().toLowerCase();
+          if (A < B) return sort.asc ? -1 : 1;
+          if (A > B) return sort.asc ? 1 : -1;
+          return 0;
+        });
+        return copy;
+      }, [rows, sort]);
+
+      const search = async () => {
+        const qs = new URLSearchParams(Object.fromEntries(Object.entries(query).filter(([k,v])=>v)));
+        const data = qs.toString() ? await (await fetch('/search?'+qs.toString())).json()
+                                   : await (await fetch('/fleets/'+fleetId+'/vessels')).json();
+        setRows(data);
+      };
+
+      return (
+        <>
+          <a className="back link" onClick={()=>location.hash='#/'}>← Back to Fleets</a>
+          <h2>Fleet</h2>
+          <div className="controls">
+            <input placeholder="Name" value={query.name} onChange={e=>setQuery(q=>({...q,name:e.target.value}))}/>
+            <input placeholder="Flag" value={query.flag} onChange={e=>setQuery(q=>({...q,flag:e.target.value}))}/>
+            <input placeholder="MMSI" value={query.mmsi} onChange={e=>setQuery(q=>({...q,mmsi:e.target.value}))}/>
+            <button onClick={search}>Search</button>
+          </div>
+          <div className="row">
+            <div>
+              <table>
+                <thead>
+                  <tr>
+                    <SortableHeader label="Name" field="name" sort={sort} setSort={setSort} />
+                    <SortableHeader label="MMSI" field="mmsi" sort={sort} setSort={setSort} />
+                    <SortableHeader label="Flag" field="flag" sort={sort} setSort={setSort} />
+                    <th>Reported Port</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sorted.map(v => (
+                    <tr key={v._id}>
+                      <td>{v.name || '(unnamed)'}</td>
+                      <td>{v.mmsi || ''}</td>
+                      <td>{v.flag || ''}</td>
+                      <td>{v?.reported_port?.name ? `${v.reported_port.name} (${v.reported_port.ts || ''})` : ''}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div>
+              <div id="map" ref={mapRef}></div>
+            </div>
+          </div>
+        </>
+      );
+    }
+
+    function Router() {
+      const [hash, setHash] = useState(location.hash || '#/');
+      useEffect(() => {
+        const onHash = () => setHash(location.hash || '#/');
+        window.addEventListener('hashchange', onHash);
+        return () => window.removeEventListener('hashchange', onHash);
+      }, []);
+      const m = hash.match(/^#\/fleet\/(.+)$/);
+      if (m) return <FleetPage fleetId={m[1]} />;
+      return <Fleets />;
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<Router />);
   </script>
 </body>
 </html>
