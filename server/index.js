@@ -1,18 +1,18 @@
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
-const cors = require('cors');
+const cors = require('cors');   // require cors first
 
 const app = express();
-app.use(cors());
+app.use(cors());                // then apply it
 
 const DATA_DIR = path.join(__dirname, 'data');
-const readJSON = (name) => JSON.parse(fs.readFileSync(path.join(DATA_DIR, name), 'utf8'));
+const readJSON = (name) => JSON.parse(fs.readFileSync(path.join(DATA_DIR, name)));
 
 // Load data in-memory (per assignment, no DB)
-const fleets = readJSON('fleets.json');              // [{ _id, name, vessels:[{ _id }] }, ...]
-const vessels = readJSON('vessels.json');            // [{ _id, mmsi, name, flag, reported_port? }, ...]
-const locations = readJSON('vesselLocations.json');  // [{ _id, lastpos:{ ts, geometry:{coordinates:[lon,lat]}, sog, course } }, ...]
+const fleets = readJSON('fleets.json');
+const vessels = readJSON('vessels.json');
+const locations = readJSON('vesselLocations.json');
 
 const vesselsById = new Map(vessels.map(v => [v._id, v]));
 const locationsById = new Map(locations.map(l => [l._id, l.lastpos]));
