@@ -5,7 +5,10 @@ const cors = require('cors');   // require cors first
 
 const app = express();
 app.use(cors());                // then apply it
-
+const clientDir = path.join(__dirname, '../client');
+if (fs.existsSync(clientDir)) {
+  app.use(express.static(clientDir));
+}
 const DATA_DIR = path.join(__dirname, 'data');
 const readJSON = (name) => JSON.parse(fs.readFileSync(path.join(DATA_DIR, name)));
 
