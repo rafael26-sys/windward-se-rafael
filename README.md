@@ -1,4 +1,6 @@
-Windward SE Assignment – Rafael Perel
+# Windward SE Assignment – Rafael Perel
+
+Technical assignment for the Windward SE role, including Node.js server and React client with fleets, vessels, search, and map visualization.
 
 Part 1: Customer Interaction
 
@@ -48,7 +50,8 @@ Result: Melisa Vingoblat, Olga Perez, Melisa Morrel.
 	
 2.	Show the names and number of screens of all employees named Melisa:
 
-The EmployeeData table includes number_of_keyboards but does not include a number_of_screens column. I therefore used the available field:
+The EmployeeData table includes "number of keyboards" but does NOT include a "number of screens" column. 
+I therefore used the available field:
 
 SELECT first_name, last_name, number_of_keyboards FROM EmployeeData WHERE first_name = 'Melisa';
 
