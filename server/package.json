@@ -1,7 +1,12 @@
 {
-  "name": "windward-se-assignment",
+  "name": "windward-server",
   "private": true,
+  "type": "commonjs",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2"
+  },
   "scripts": {
-    "start": "npm --prefix server install --silent && npm --prefix server start"
+    "start": "node index.js"
   }
 }
