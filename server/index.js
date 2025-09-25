@@ -12,7 +12,7 @@ if (fs.existsSync(clientDir)) {
 }
 
 const DATA_DIR = path.join(__dirname, 'data');
-const readJSON = (name) => JSON.parse(fs.readFileSync(path.join(DATA_DIR, name)));
+const readJSON = (name) => JSON.parse(fs.readFileSync(path.join(DATA_DIR, name), 'utf8'));
 
 const fleets = readJSON('fleets.json');
 const vessels = readJSON('vessels.json');
